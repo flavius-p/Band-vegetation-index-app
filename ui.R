@@ -65,8 +65,7 @@ cards <- list(
         p("Cette application permet la reclassification et l'analyse de données 
           raster à une bande (ex : indice de végétation). La finalité de cet 
           outils est de fournir de la données pré-traités pour 
-          l'analyse d'indices raster monobande.  
-          Cet outils est développé par le GIP-LIA, qui possèdent les droits."),
+          l'analyse d'indices raster monobande."),
         h3("Préparation des données"),
         p("Avant d'utiliser cette application, il est essentiel de préparer les 
           données. L'indice de végétation doit être calculé et/ou créé en dehors 
