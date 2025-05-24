@@ -1,22 +1,22 @@
 # 🌿 Band Vegetation Index App
 
-**Band Vegetation Index App** est une application Shiny développée pour analyser des données raster d’indices de végétation. Elle permet de reclassifier les données selon des classes personnalisables, d’en visualiser la répartition et d’exporter les statistiques associées. Cet outil est particulièrement utile dans un contexte expérimental ou de suivi environnemental.
+**Band Vegetation Index App** is a Shiny application developed to analyze raster data of vegetation indices. It allows for the reclassification of data into customizable classes, visualization of their distribution, and export of associated statistics. This tool is particularly useful in experimental or environmental monitoring contexts.
 
 ---
 
-## 🚀 Fonctionnalités principales
+## 🚀 Main Features
 
-- 📂 **Import de plusieurs images raster**  
-- 🧮 **Reclassification dynamique** en 5 à 20 classes selon les besoins de l’analyse  
-- 📊 **Visualisation graphique** du pourcentage de pixels par classe et par image  
-- 🗺️ **Affichage cartographique** des données brutes projetées sur une carte Google (via `leaflet`/`mapview`)  
-- 📤 **Export des statistiques** au format Excel pour analyse ou archivage
+- 📂 **Import multiple raster images**  
+- 🧮 **Dynamic reclassification** into 5 to 20 classes depending on analysis needs  
+- 📊 **Graphical visualization** of pixel percentages by class and by image  
+- 🗺️ **Map display** of raw data projected onto a Google map (via `leaflet`/`mapview`)  
+- 📤 **Export statistics** to Excel format for further analysis or archiving
 
 ---
 
-## 🧰 Technologies utilisées
+## 🧰 Technologies Used
 
-L’application repose sur les packages suivants :
+The application relies on the following R packages:
 
 ```r
 required_packages <- c(
@@ -26,24 +26,24 @@ required_packages <- c(
 )
 ```
 
-## 🛠️Installation & Lancement
+## 🛠️Installation & Launch
 
-1. ### **Cloner ou télécharger** ce dépôt.
+1. ### **Clone or download** this repository.
 
-2. ### Ouvrir le projet dans RStudio.
+2. ### Open the project in RStudio.
 
-3. ### Exécuter `app.R` ou le dossier contenant l’application.
+3. ### Run `app.R` or the folder containing the application.
 
 ```r
 # Exemple
 shiny::runApp("Bandvegetationindex")
 ```
 
-## 👤 Auteur
+## 👤 Author
 
 **Flavien POTIAU**
  📧 flavien.potiau-enjouvin@hotmail.fr
 
-## 📄 Licence
+## 📄 License
 
-Ce projet est libre de droits selon les termes de la **licence MIT**.
+This project is open source under the terms of the **MIT License**.
