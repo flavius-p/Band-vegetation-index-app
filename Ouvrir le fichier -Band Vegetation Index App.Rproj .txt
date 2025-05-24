@@ -1,0 +1,14 @@
+Ouvrir le fichier - "Band Vegetation Index App.Rproj"
+
+Puis lancer le script app.R
+
+L'application se lancera en navigateur
+
+id user : shiny
+mdp user : drone
+
+id admin : shinymanager
+mdp admin : control
+
+
+d'autres session peuvent être ajouté et les mot de passe peuvent être changé depuis la session admin.

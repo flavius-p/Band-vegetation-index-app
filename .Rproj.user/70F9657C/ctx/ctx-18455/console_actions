@@ -1,0 +1,42 @@
+{
+    "type": [
+        2,
+        2,
+        0,
+        1,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        3,
+        2,
+        3,
+        3,
+        2,
+        3,
+        3,
+        2
+    ],
+    "data": [
+        "\nR version 4.4.0 (2024-04-24 ucrt) -- \"Puppy Cup\"\nCopyright (C) 2024 The R Foundation for Statistical Computing\nPlatform: x86_64-w64-mingw32/x64\n\nR est un logiciel libre livré sans AUCUNE GARANTIE.\nVous pouvez le redistribuer sous certaines conditions.\nTapez 'license()' ou 'licence()' pour plus de détails.\n\nR est un projet collaboratif avec de nombreux contributeurs.\nTapez 'contributors()' pour plus d'information et\n'citation()' pour la façon de le citer dans les publications.\n\nTapez 'demo()' pour des d�",
+        "�monstrations, 'help()' pour l'aide\nen ligne ou 'help.start()' pour obtenir l'aide au format HTML.\nTapez 'q()' pour quitter R.\n\n[Workspace loaded from G:/000 - Nouveau partage/11 - INFORMATIQUE/Indice de végétations/Band Vegetation Index App - V3/.RData]\r\n\r\n",
+        "> ",
+        "shiny::runApp()",
+        "Le chargement a nécessité le package : shiny\n\nListening on http://127.0.0.1:4941\nLe chargement a nécessité le package : shinymanager\nAvis : le package ‘shinymanager’ a été compilé avec la version R 4.4.2\nError in .make_numeric_version(x, strict, .standard_regexps()$valid_numeric_version) : \n  invalid non-character version specification 'x' (type: double)\nLe chargement a nécessité le package : here\nAvis : le package ‘here’ a été compilé avec la version R 4.4.2\nhere() starts at G:/000 - No",
+        "uveau partage/11 - INFORMATIQUE/Indice de végétations/Band Vegetation Index App - V3\nLe chargement a nécessité le package : bslib\nAvis : le package ‘bslib’ a été compilé avec la version R 4.4.2\n\nAttachement du package : ‘bslib’\n\nL'objet suivant est masqué depuis ‘package:utils’:\n\n    page\n\nLe chargement a nécessité le package : dplyr\nAvis : le package ‘dplyr’ a été compilé avec la version R 4.4.2\n\nAttachement du package : ‘dplyr’\n\nLes objets suivants sont masqués depuis ‘",
+        "package:stats’:\n\n    filter, lag\n\nLes objets suivants sont masqués depuis ‘package:base’:\n\n    intersect, setdiff, setequal, union\n\nLe chargement a nécessité le package : writexl\nAvis : le package ‘writexl’ a été compilé avec la version R 4.4.2\nLe chargement a nécessité le package : leaflet\nAvis : le package ‘leaflet’ a été compilé avec la version R 4.4.2\nLe chargement a nécessité le package : raster\nAvis : le package ‘raster’ a été compilé avec la version R 4.4.2\nLe charge",
+        "ment a nécessité le package : sp\nAvis : le package ‘sp’ a été compilé avec la version R 4.4.1\n\nAttachement du package : ‘raster’\n\nL'objet suivant est masqué depuis ‘package:dplyr’:\n\n    select\n\nLe chargement a nécessité le package : readr\nAvis : le package ‘readr’ a été compilé avec la version R 4.4.1\nAvis : remplacement de l'importation précédente ‘ellipsis::check_dots_used’ par ‘rlang::check_dots_used’ lors du chargement de ‘hms’\nAvis : remplacement de l'importatio",
+        "n précédente ‘ellipsis::check_dots_empty’ par ‘rlang::check_dots_empty’ lors du chargement de ‘hms’\nAvis : remplacement de l'importation précédente ‘ellipsis::check_dots_unnamed’ par ‘rlang::check_dots_unnamed’ lors du chargement de ‘hms’\nLe chargement a nécessité le package : ggplot2\nAvis : le package ‘ggplot2’ a été compilé avec la version R 4.4.1\nLe chargement a nécessité le package : terra\nAvis : le package ‘terra’ a été compilé avec la version R 4.4.2\nterra",
+        " 1.7.83\nLe chargement a nécessité le package : stars\nAvis : le package ‘stars’ a été compilé avec la version R 4.4.2\nLe chargement a nécessité le package : abind\nAvis : le package ‘abind’ a été compilé avec la version R 4.4.1\nLe chargement a nécessité le package : sf\nAvis : le package ‘sf’ a été compilé avec la version R 4.4.2\nLinking to GEOS 3.12.2, GDAL 3.9.3, PROJ 9.4.1; sf_use_s2() is TRUE\nLe chargement a nécessité le package : DBI\nAvis : le package ‘DBI’ a été compil�",
+        "� avec la version R 4.4.2\nLe chargement a nécessité le package : RSQLite\nAvis : le package ‘RSQLite’ a été compilé avec la version R 4.4.2\nLe chargement a nécessité le package : keyring\nAvis : le package ‘keyring’ a été compilé avec la version R 4.4.2\nError: le chargement du package ou de l'espace de noms a échoué pour ‘keyring’ in loadNamespace(j <- i[[1L]], c(lib.loc, .libPaths()), versionCheck = vI[[j]]) :\naucun package nommé ‘assertthat’ n'est trouvé\n",
+        "Error in install.packages : Updating loaded packages\n",
+        "Avis : le package ‘keyring’ a été compilé avec la version R 4.4.2\nAvis : Error in : le chargement du package ou de l'espace de noms a échoué pour ‘keyring’ in loadNamespace(j <- i[[1L]], c(lib.loc, .libPaths()), versionCheck = vI[[j]]) :\naucun package nommé ‘assertthat’ n'est trouvé\n  79: \u001B[37mstop\u001B[39m\n  78: \u001B[37mvalue[[3L]]\u001B[39m\n  77: \u001B[37mtryCatchOne\u001B[39m\n  76: \u001B[37mtryCatchList\u001B[39m\n  75: \u001B[37mtryCatch\u001B[39m\n  74: \u001B[37mlibrary\u001B[39m\n  73: \u001B[34m\u001B[1mFUN [G:\\000 - Nouveau partage\\11 - INFO",
+        "RMATIQUE\\Indice de végétations\\Band Vegetation Index App - V3/ui.R#29]\u001B[22m\u001B[39m\n  72: \u001B[37mlapply\u001B[39m\n  71: \u001B[37msapply\u001B[39m\nLe chargement a nécessité le package : keyring\nAvis : le package ‘keyring’ a été compilé avec la version R 4.4.2\nError: le chargement du package ou de l'espace de noms a échoué pour ‘keyring’ in loadNamespace(j <- i[[1L]], c(lib.loc, .libPaths()), versionCheck = vI[[j]]) :\naucun package nommé ‘assertthat’ n'est trouvé\n",
+        "Error in install.packages : Updating loaded packages\n",
+        "Avis : le package ‘keyring’ a été compilé avec la version R 4.4.2\nAvis : Error in : le chargement du package ou de l'espace de noms a échoué pour ‘keyring’ in loadNamespace(j <- i[[1L]], c(lib.loc, .libPaths()), versionCheck = vI[[j]]) :\naucun package nommé ‘assertthat’ n'est trouvé\n  79: \u001B[37mstop\u001B[39m\n  78: \u001B[37mvalue[[3L]]\u001B[39m\n  77: \u001B[37mtryCatchOne\u001B[39m\n  76: \u001B[37mtryCatchList\u001B[39m\n  75: \u001B[37mtryCatch\u001B[39m\n  74: \u001B[37mlibrary\u001B[39m\n  73: \u001B[34m\u001B[1mFUN [G:\\000 - Nouveau partage\\11 - INFO",
+        "RMATIQUE\\Indice de végétations\\Band Vegetation Index App - V3/ui.R#29]\u001B[22m\u001B[39m\n  72: \u001B[37mlapply\u001B[39m\n  71: \u001B[37msapply\u001B[39m\n",
+        "\nRestarting R session...\n\n"
+    ]
+}

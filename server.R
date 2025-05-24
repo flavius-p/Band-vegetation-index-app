@@ -1,0 +1,805 @@
+# server.R
+# Get the executing folder
+#main_dir <- ()
+# debug
+
+# Required packages
+required_packages <- c(
+  "shinymanager",
+  "here",
+  "bslib",
+  "dplyr",
+  "shiny",
+  "writexl",
+  "leaflet",
+  "raster",
+  "readr",
+  "ggplot2",
+  "terra",
+  #"mapview",
+  "stars",
+  #"gdalutils",
+  "DBI",
+  "RSQLite",  # Added RSQLite for database connection,
+  "keyring"
+)
+
+# Function to check if packages are installed
+check_and_install <- function(pkg) {
+  if (!require(pkg, character.only = TRUE)) {
+    install.packages(pkg, dependencies = FALSE, repos = 'https://cloud.r-project.org')
+    library(pkg, character.only = TRUE)
+  }
+}
+
+# Loop over the required packages and install if missing
+sapply(required_packages, check_and_install)
+
+options(shiny.maxRequestSize = 30000 * 1024^2)
+
+main_dir <- here()
+print(here())
+
+# Define the path to the modules folder
+modules_path <- "modules"
+source(file.path(main_dir, modules_path, "reclassify_module.R"))
+#source(file.path(main_dir, modules_path, "data_export_module.R"))
+main_dir <- here()
+db_path <- file.path(main_dir, "harddata", "database.sqlite")
+print(db_path)
+
+server <- function(input, output, session) {
+  
+  # check_credentials directly on sqlite db
+  
+  res_auth <- secure_server(
+    check_credentials = check_credentials(
+      db_path,
+      passphrase = key_get("R-shinymanager-key", "obiwankenobi")
+      #passphrase = "RasterManager"
+    )
+  )
+  
+  output$auth_output <- renderPrint({
+    reactiveValuesToList(res_auth)
+  })
+  
+  
+  
+  # Define the path to the 'data' folder within the main script's directory
+  main_script_dir <- dirname(rstudioapi::getActiveDocumentContext()$path) # For RStudio
+  permanent_folder <- file.path(main_script_dir, "data")
+  
+  # Ensure the folder exists
+  if (!dir.exists(permanent_folder)) {
+    dir.create(permanent_folder, recursive = TRUE)
+  }
+  
+  observe({
+    file_paths <- list.files(permanent_folder, full.names = TRUE)  # List all files
+    if (length(file_paths) > 0) {
+      unlink(file_paths, recursive = TRUE)  # Delete all files
+      cat("All files in the 'data' folder have been deleted.\n")
+    }
+  })
+  
+  processedData <- reactiveVal(NULL)
+  rasterFiles <- reactiveVal(NULL)  # To store paths of uploaded raster files
+  data_ready <- reactiveVal(NULL)   # To store processed data
+  class_limits <- reactiveVal(NULL)  # To store class limits
+  
+  # Reset Button: Delete uploaded data and reset the app state
+  observeEvent(input$reset_button, {
+    file_paths <- list.files(permanent_folder, full.names = TRUE)
+    if (length(file_paths) > 0) {
+      unlink(file_paths, recursive = TRUE)
+      cat("All files in the 'data' folder have been deleted.\n")
+    }
+    
+    # Reset reactive values
+    processedData(NULL)
+    rasterFiles(NULL)
+    data_ready(NULL)
+    class_limits(NULL)
+    
+    output$upload_status <- renderText("Data has been reset.")
+    output$preprocessing <- renderUI(NULL)
+    output$ActiveMap <- renderUI(NULL)
+    output$processing <- renderUI(NULL)
+    output$rasters_plotting <- renderPlot(NULL)
+    output$leafletmap <- renderLeaflet(NULL)
+  })
+  
+  # Quit App Button: Stop the Shiny app
+  observeEvent(input$quit_button, {
+    stopApp()  # This will stop the Shiny app
+  })
+  
+  
+  # Reactive output to indicate data availability
+  output$dataAvailable <- reactive({
+    !is.null(data_ready()) && nrow(data_ready()) > 0
+  })
+  outputOptions(output, "dataAvailable", suspendWhenHidden = FALSE)
+  
+  observeEvent(input$upload_button,{
+    req(input$data_files)
+    
+    # Get file paths of the uploaded files
+    files <- input$data_files$datapath
+    file_names <- input$data_files$name  # Original file names
+    if (length(files) == 0) {
+      output$progress <- renderText("Pas de fichier importer pour le pré-traitement.")
+      return()
+    }
+    
+    # Save uploaded files to the permanent directory with their original names
+    saved_files <- sapply(seq_along(files), function(i) {
+      dest <- file.path(permanent_folder, basename(file_names[i]))
+      file.copy(files[i], dest)
+      dest
+    })
+    
+    output$upload_status <- renderText({
+      "The data has been uploaded."
+    })
+    
+    output$preprocessing <- renderUI({
+      #h6("Pré-traitement"),
+      actionButton("preprocess_button", "Pré-traitement des images")
+    })
+    
+    output$ActiveMap <- renderUI({
+      actionButton("launchBtn", "Launch Map")
+    })
+  })
+  
+  observeEvent(input$launchBtn, {
+    
+    print("Launch button pressed. Starting to process raster files.")
+    
+    combined_extent <- NULL
+    
+    raster_files <- list.files(permanent_folder, pattern = "\\.tif$", full.names = TRUE)
+    
+    # Check if raster files are found
+    if (length(raster_files) == 0) {
+      output$status <- renderText("No raster files found.")
+      print("No raster files found in the specified folder.")
+      return()
+    }
+    
+    print(paste(length(raster_files), "raster files found. Rendering plots..."))
+    
+    # Render the raster plots
+    output$rasters_plotting <- renderPlot({
+      par(mfrow = c(1, length(raster_files)))  # Adjust layout for multiple plots
+      for (i in 1:length(raster_files)) {
+        print(paste("Processing raster file:", raster_files[i]))
+        raster_plot <- rast(raster_files[i])  # Read the raster files
+        plot(raster_plot, main = basename(raster_files[i]))  # Main title with file name
+        print(paste("Plotting completed for:", basename(raster_files[i])))
+        # Update combined extent
+        if (is.null(combined_extent)) {
+          combined_extent <- ext(raster_plot)  # Get the extent of the first raster
+        } else {
+          combined_extent <- union(combined_extent, ext(raster_plot))  # Expand extent
+        }
+      }
+    })
+    
+    # Render the leaflet map
+    # Render the leaflet map
+    output$leafletmap <- renderLeaflet({
+      
+      print("Creating the initial leaflet map.")
+      
+      # Create the initial leaflet map object
+      map <- leaflet() %>%
+        addTiles(
+          urlTemplate = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          options = tileOptions(minZoom = 1, maxZoom = 50)
+        ) #%>%  # Add OpenStreetMap tiles
+      #addTiles(urlTemplate = "https://{s}.google.com/vt?lyrs=m&x={x}&y={y}&z={z}",
+      #         attribution = '© Google Maps',
+      #         group = "Google Maps") %>%  # Add Google Maps tiles
+      #addLayersControl(
+      #  baseGroups = c("OpenStreetMap", "Google Maps"),
+      #  options = layersControlOptions(collapsed = FALSE))
+      
+      # Set the view based on the combined extent
+      if (!is.null(combined_extent)) {
+        # Get the center and zoom level based on the extent
+        center_lng <- (combined_extent[1] + combined_extent[3]) / 2
+        center_lat <- (combined_extent[2] + combined_extent[4]) / 2
+        map <- map %>%
+          setView(lng = center_lng, lat = center_lat, zoom = 10)  # Adjust zoom as necessary
+      }
+      
+      
+      
+      # Loop through each raster file and add it to the map
+      for (i in 1:length(raster_files)) {
+        print(paste("Reading raster file for the map:", raster_files[i]))
+        raster_map<- large_raster <- rast(raster_files[i])
+        #raster_map <- mapview(large_raster, layer.name = "High res raster", maxpixels = 7800705)
+        # Reduce the resolution of the raster to make it smaller
+        raster_map_resampled <- aggregate(raster_map, fact = 5)  # Adjust fact as necessary
+        print(paste("Raster file resampled:", raster_files[i]))
+        
+        # Create a color palette based on the values in the raster
+        color_pal <- colorNumeric(
+          palette = c("#0C2C84", "#41B6C4", "#FFFFCC"),
+          domain = values(raster_map_resampled), 
+          na.color = "transparent"
+        )
+        print("Color palette created.")
+        
+        # Add raster image to the map
+        map <- map %>%
+          #addRasterImage((leaflet_map <- raster_map_resampled@map), colors = color_pal, opacity = 0.8)
+          addRasterImage((leaflet_map <- raster_map_resampled), colors = color_pal, opacity = 0.8)
+        print(paste("Raster image added to the map for:", basename(raster_files[i])))
+      }
+      
+      print("Finished adding all raster images to the map. Returning the map.")
+      
+      
+      # Return the map object to render
+      map 
+    })
+  })
+  
+  
+  # Preprocess Data
+  observeEvent(input$preprocess_button, {
+    req(input$data_files)  # Vérifie que les fichiers sont chargés
+    
+    # Obtenez les fichiers .tif dans le dossier spécifié
+    raster_files <- list.files(permanent_folder, pattern = "\\.tif$", full.names = TRUE)
+    
+    # Vérifie si des fichiers ont été trouvés
+    if (length(raster_files) == 0) {
+      output$status <- renderText({
+        "Aucun fichier .tif trouvé dans le dossier."
+      })
+      return()
+    }
+    
+    # Met à jour la valeur réactive des fichiers raster
+    rasterFiles(raster_files)  # Mettez à jour avec les vrais chemins des fichiers
+    
+    # Prétraitement : calcul des valeurs min et max pour chaque fichier
+    min_vals <- numeric(length(raster_files))  # Initialise un vecteur pour les min
+    max_vals <- numeric(length(raster_files))  # Initialise un vecteur pour les max
+    
+    for (i in seq_along(raster_files)) {
+      raster_map <- rast(raster_files[i])  # Utilisation de 'rast' pour lire le fichier avec 'terra'
+      
+      # Met à jour les statistiques de min et max
+      raster_map <- setMinMax(raster_map)
+      
+      # Récupère les valeurs min et max
+      min_max <- minmax(raster_map)
+      
+      # Vérifie si les valeurs min et max sont finies
+      if (all(is.finite(min_max))) {
+        min_vals[i] <- min_max[1]
+        max_vals[i] <- min_max[2]
+      } else {
+        min_vals[i] <- NA
+        max_vals[i] <- NA
+      }
+    }
+    
+    # Calcul global des min et max
+    global_min <- min(min_vals, na.rm = TRUE)
+    global_max <- max(max_vals, na.rm = TRUE)
+    
+    # Assurez-vous que les valeurs sont valides
+    if (is.na(global_min) || is.na(global_max)) {
+      output$status <- renderText({
+        "Impossible de calculer les valeurs minimales et maximales. 
+        Assurez-vous que vos fichiers contiennent des données valides."
+      })
+      return()
+    }
+    
+    global_min <- global_min - 1  # Ajustement pour éviter des valeurs égales aux bornes
+    
+    # Définition automatique des limites de classification
+    num_classes <- input$num_classes  # Récupérer le nombre de classes à partir de l'UI
+    class_range <- global_max - global_min
+    
+    # Vérifiez que class_range est un nombre positif
+    if (class_range <= 0) {
+      output$status <- renderText({
+        "La plage de classes doit être positive. 
+        Vérifiez vos fichiers de données."
+      })
+      return()
+    }
+    
+    class_breaks <- seq(global_min, global_max, length.out = num_classes + 1)
+    
+    # Créer dynamiquement les limites des classes
+    class_limits <- lapply(1:num_classes, function(i) {
+      c(class_breaks[i], class_breaks[i + 1])
+    })
+    
+    # Convertir en liste nommée pour un accès plus facile
+    names(class_limits) <- paste0("class", 1:num_classes)
+    
+    # Met à jour la valeur réactive des limites de classes
+    class_limits(class_limits)  # Supposant que class_limits est une valeur réactive
+    
+    # Render les limites des classes dans l'UI
+    output$class_limits_ui <- renderUI({
+      fluidPage(
+        lapply(1:num_classes, function(i) {
+          fluidRow(
+            column(6, numericInput(paste0("class", i, "_min"), 
+                                   paste("Classe", i, "Min"), 
+                                   value = class_limits[[i]][1])),
+            column(6, numericInput(paste0("class", i, "_max"), 
+                                   paste("Classe", i, "Max"), 
+                                   value = class_limits[[i]][2]))
+          )
+        })
+      )
+    })
+    
+    # Mise à jour du statut pour indiquer que le prétraitement est terminé
+    output$status <- renderText({
+      "Prétraitement terminé. Appuyez sur 'Lancer la carte' pour visualiser les rasters."
+    })
+    
+    output$processing <- renderUI({actionButton("process_button", "Traiter les données")})
+    
+  })
+  
+  
+  
+  
+  # Process Data
+  observeEvent(input$process_button, {
+    req(rasterFiles(), class_limits())
+    
+    # Process data with reclassify_module
+    combined_data <- tryCatch({
+      reclassify_module(permanent_folder, class_limits(), input$resopix)
+    }, error = function(e) {
+      output$progress <- renderText(paste("Erreur lors de la reclassification:", e$message))
+      NULL
+    })
+    
+    if (is.null(combined_data)) {
+      return()
+    }
+    
+    # Ensure treatment names are repeated correctly
+    #num_classes_per_file <- 5  # Number of classification classes
+    #num_files <- length(input$data_files$name)
+    #combined_data$Treatment <- rep(rep(input$data_files$name, each = num_classes_per_file), length.out = nrow(combined_data))
+    
+    # Update data_ready reactive value
+    data_ready(combined_data)
+    
+    # Define the filename and path for the exported data
+    #processed_file_path <- file.path(permanent_folder, paste("combined_data_", Sys.Date(), ".csv", sep = ""))
+    
+    # Export data with data_export_module
+    export_path <- tryCatch({
+      export_data(combined_data, permanent_folder)
+    }, error = function(e) {
+      output$progress <- renderText(paste("Erreur lors de l'export de la données", e$message))
+      NULL
+    })
+    
+    if (is.null(export_path)) {
+      return()
+    }
+    
+    processedData(export_path)
+    
+    output$progress <- renderText(" Les données ont été traitées. 
+    La répartition choisit peut être visualisées. 
+    Les données issues de l'analyse sont téléchargeables.")
+    
+    output$downloadoption <- renderUI({downloadButton("download_result", "Télécharger les données")})
+  })
+  
+  output$graph <- renderPlot({
+    req(data_ready())
+    
+    ggplot(data_ready(), aes(x = Treatment, y = Percentage_Pixels, fill = factor(value))) +
+      geom_bar(stat = "identity", position = "dodge") +
+      geom_text(aes(label = round(Percentage_Pixels, 2)), 
+                position = position_dodge(width = 0.9), 
+                vjust = -0.3, size = 3, color = "black") +
+      labs(title = "Percentage Pixels by Treatment and Value", 
+           y = "Percentage Pixels", 
+           x = "Treatment") +
+      theme_minimal() +
+      theme(legend.position = "bottom", 
+            axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+  
+  # Provide a download handler for the processed data
+  output$download_result <- downloadHandler(
+    filename = function() {
+      paste("combined_data_", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      req(processedData())
+      file.copy(processedData(), file)
+    }
+  )
+  
+  # Clean up the permanent folder after the download is complete
+  observeEvent(input$download_result, {
+    if (!is.null(processedData())) {
+      unlink(permanent_folder, recursive = TRUE)
+    }
+  })
+
+  # Define the path to the 'data' folder within the main script's directory
+  main_script_dir <- dirname(rstudioapi::getActiveDocumentContext()$path) # For RStudio
+  permanent_folder <- file.path(main_script_dir, "data")
+  
+  # Ensure the folder exists
+  if (!dir.exists(permanent_folder)) {
+    dir.create(permanent_folder, recursive = TRUE)
+  }
+  
+  observe({
+    file_paths <- list.files(permanent_folder, full.names = TRUE)  # List all files
+    if (length(file_paths) > 0) {
+      unlink(file_paths, recursive = TRUE)  # Delete all files
+      cat("All files in the 'data' folder have been deleted.\n")
+    }
+  })
+  
+  #processedData <- reactiveVal(NULL)
+  rasterFiles <- reactiveVal(NULL)  # To store paths of uploaded raster files
+  data_ready <- reactiveVal(NULL)   # To store processed data
+  class_limits <- reactiveVal(NULL)  # To store class limits
+  
+  # Reset Button: Delete uploaded data and reset the app state
+  observeEvent(input$reset_button, {
+    file_paths <- list.files(permanent_folder, full.names = TRUE)
+    if (length(file_paths) > 0) {
+      unlink(file_paths, recursive = TRUE)
+      cat("All files in the 'data' folder have been deleted.\n")
+    }
+    
+    # Reset reactive values
+    #processedData(NULL)
+    rasterFiles(NULL)
+    data_ready(NULL)
+    class_limits(NULL)
+    
+    output$upload_status <- renderText("Data has been reset.")
+    output$preprocessing <- renderUI(NULL)
+    output$ActiveMap <- renderUI(NULL)
+    output$processing <- renderUI(NULL)
+    output$rasters_plotting <- renderPlot(NULL)
+    output$leafletmap <- renderLeaflet(NULL)
+  })
+  
+  # Quit App Button: Stop the Shiny app
+  observeEvent(input$quit_button, {
+    stopApp()  # This will stop the Shiny app
+  })
+  
+  
+  # Reactive output to indicate data availability
+  output$dataAvailable <- reactive({
+    !is.null(data_ready()) && nrow(data_ready()) > 0
+  })
+  outputOptions(output, "dataAvailable", suspendWhenHidden = FALSE)
+  
+  observeEvent(input$upload_button,{
+    req(input$data_files)
+    
+    # Get file paths of the uploaded files
+    files <- input$data_files$datapath
+    file_names <- input$data_files$name  # Original file names
+    if (length(files) == 0) {
+      output$progress <- renderText("Pas de fichier importer pour le pré-traitement.")
+      return()
+    }
+    
+    # Save uploaded files to the permanent directory with their original names
+    saved_files <- sapply(seq_along(files), function(i) {
+      dest <- file.path(permanent_folder, basename(file_names[i]))
+      file.copy(files[i], dest)
+      dest
+    })
+    
+    output$upload_status <- renderText({
+      "The data has been uploaded."
+    })
+    
+    output$preprocessing <- renderUI({
+      #h6("Pré-traitement"),
+      actionButton("preprocess_button", "Pré-traitement des images")
+    })
+    
+    output$ActiveMap <- renderUI({
+      actionButton("launchBtn", "Launch Map")
+    })
+  })
+  
+  observeEvent(input$launchBtn, {
+    
+    print("Launch button pressed. Starting to process raster files.")
+    
+    combined_extent <- NULL
+    
+    raster_files <- list.files(permanent_folder, pattern = "\\.tif$", full.names = TRUE)
+    
+    # Check if raster files are found
+    if (length(raster_files) == 0) {
+      output$status <- renderText("No raster files found.")
+      print("No raster files found in the specified folder.")
+      return()
+    }
+    
+    print(paste(length(raster_files), "raster files found. Rendering plots..."))
+    
+    # Render the raster plots
+    output$rasters_plotting <- renderPlot({
+      par(mfrow = c(1, length(raster_files)))  # Adjust layout for multiple plots
+      for (i in 1:length(raster_files)) {
+        print(paste("Processing raster file:", raster_files[i]))
+        raster_plot <- rast(raster_files[i])  # Read the raster files
+        plot(raster_plot, main = basename(raster_files[i]))  # Main title with file name
+        print(paste("Plotting completed for:", basename(raster_files[i])))
+        # Update combined extent
+        if (is.null(combined_extent)) {
+          combined_extent <- ext(raster_plot)  # Get the extent of the first raster
+        } else {
+          combined_extent <- union(combined_extent, ext(raster_plot))  # Expand extent
+        }
+      }
+    })
+    
+    # Render the leaflet map
+    # Render the leaflet map
+    output$leafletmap <- renderLeaflet({
+      
+      print("Creating the initial leaflet map.")
+      
+      # Create the initial leaflet map object
+      map <- leaflet() %>%
+        addTiles(
+          urlTemplate = "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+          options = tileOptions(minZoom = 1, maxZoom = 50)
+        ) #%>%  # Add OpenStreetMap tiles
+        #addTiles(urlTemplate = "https://{s}.google.com/vt?lyrs=m&x={x}&y={y}&z={z}",
+        #         attribution = '© Google Maps',
+        #         group = "Google Maps") %>%  # Add Google Maps tiles
+        #addLayersControl(
+        #  baseGroups = c("OpenStreetMap", "Google Maps"),
+        #  options = layersControlOptions(collapsed = FALSE))
+      
+      # Set the view based on the combined extent
+      if (!is.null(combined_extent)) {
+        # Get the center and zoom level based on the extent
+        center_lng <- (combined_extent[1] + combined_extent[3]) / 2
+        center_lat <- (combined_extent[2] + combined_extent[4]) / 2
+        map <- map %>%
+          setView(lng = center_lng, lat = center_lat, zoom = 10)  # Adjust zoom as necessary
+      }
+      
+
+      
+      # Loop through each raster file and add it to the map
+      for (i in 1:length(raster_files)) {
+        print(paste("Reading raster file for the map:", raster_files[i]))
+        raster_map<- large_raster <- rast(raster_files[i])
+        #raster_map <- mapview(large_raster, layer.name = "High res raster", maxpixels = 7800705)
+        # Reduce the resolution of the raster to make it smaller
+        raster_map_resampled <- aggregate(raster_map, fact = 5)  # Adjust fact as necessary
+        print(paste("Raster file resampled:", raster_files[i]))
+        
+        # Create a color palette based on the values in the raster
+        color_pal <- colorNumeric(
+          palette = c("#0C2C84", "#41B6C4", "#FFFFCC"),
+          domain = values(raster_map_resampled), 
+          na.color = "transparent"
+        )
+        print("Color palette created.")
+        
+        # Add raster image to the map
+        map <- map %>%
+          #addRasterImage((leaflet_map <- raster_map_resampled@map), colors = color_pal, opacity = 0.8)
+          addRasterImage((leaflet_map <- raster_map_resampled), colors = color_pal, opacity = 0.8)
+        print(paste("Raster image added to the map for:", basename(raster_files[i])))
+      }
+      
+      print("Finished adding all raster images to the map. Returning the map.")
+      
+      
+      # Return the map object to render
+      map 
+      })
+  })
+  
+  
+  # Preprocess Data
+  observeEvent(input$preprocess_button, {
+    req(input$data_files)  # Vérifie que les fichiers sont chargés
+    
+    # Obtenez les fichiers .tif dans le dossier spécifié
+    raster_files <- list.files(permanent_folder, pattern = "\\.tif$", full.names = TRUE)
+    
+    # Vérifie si des fichiers ont été trouvés
+    if (length(raster_files) == 0) {
+      output$status <- renderText({
+        "Aucun fichier .tif trouvé dans le dossier."
+      })
+      return()
+    }
+    
+    # Met à jour la valeur réactive des fichiers raster
+    rasterFiles(raster_files)  # Mettez à jour avec les vrais chemins des fichiers
+    
+    # Prétraitement : calcul des valeurs min et max pour chaque fichier
+    min_vals <- numeric(length(raster_files))  # Initialise un vecteur pour les min
+    max_vals <- numeric(length(raster_files))  # Initialise un vecteur pour les max
+    
+    for (i in seq_along(raster_files)) {
+      raster_map <- rast(raster_files[i])  # Utilisation de 'rast' pour lire le fichier avec 'terra'
+      
+      # Met à jour les statistiques de min et max
+      raster_map <- setMinMax(raster_map)
+      
+      # Récupère les valeurs min et max
+      min_max <- minmax(raster_map)
+      
+      # Vérifie si les valeurs min et max sont finies
+      if (all(is.finite(min_max))) {
+        min_vals[i] <- min_max[1]
+        max_vals[i] <- min_max[2]
+      } else {
+        min_vals[i] <- NA
+        max_vals[i] <- NA
+      }
+    }
+    
+    # Calcul global des min et max
+    global_min <- min(min_vals, na.rm = TRUE)
+    global_max <- max(max_vals, na.rm = TRUE)
+    
+    # Assurez-vous que les valeurs sont valides
+    if (is.na(global_min) || is.na(global_max)) {
+      output$status <- renderText({
+        "Impossible de calculer les valeurs minimales et maximales. 
+        Assurez-vous que vos fichiers contiennent des données valides."
+      })
+      return()
+    }
+    
+    global_min <- global_min - 1  # Ajustement pour éviter des valeurs égales aux bornes
+    
+    # Définition automatique des limites de classification
+    num_classes <- input$num_classes  # Récupérer le nombre de classes à partir de l'UI
+    class_range <- global_max - global_min
+    
+    # Vérifiez que class_range est un nombre positif
+    if (class_range <= 0) {
+      output$status <- renderText({
+        "La plage de classes doit être positive. 
+        Vérifiez vos fichiers de données."
+      })
+      return()
+    }
+    
+    class_breaks <- seq(global_min, global_max, length.out = num_classes + 1)
+    
+    # Créer dynamiquement les limites des classes
+    class_limits <- lapply(1:num_classes, function(i) {
+      c(class_breaks[i], class_breaks[i + 1])
+    })
+    
+    # Convertir en liste nommée pour un accès plus facile
+    names(class_limits) <- paste0("class", 1:num_classes)
+    
+    # Met à jour la valeur réactive des limites de classes
+    class_limits(class_limits)  # Supposant que class_limits est une valeur réactive
+    
+    # Render les limites des classes dans l'UI
+    output$class_limits_ui <- renderUI({
+      fluidPage(
+        lapply(1:num_classes, function(i) {
+          fluidRow(
+            column(6, numericInput(paste0("class", i, "_min"), 
+                                   paste("Classe", i, "Min"), 
+                                   value = class_limits[[i]][1])),
+            column(6, numericInput(paste0("class", i, "_max"), 
+                                   paste("Classe", i, "Max"), 
+                                   value = class_limits[[i]][2]))
+          )
+        })
+      )
+    })
+    
+    # Mise à jour du statut pour indiquer que le prétraitement est terminé
+    output$status <- renderText({
+      "Prétraitement terminé. Appuyez sur 'Lancer la carte' pour visualiser les rasters."
+    })
+    
+    output$processing <- renderUI({actionButton("process_button", "Traiter les données")})
+    
+  })
+  
+  
+  
+  
+  # Process Data
+  observeEvent(input$process_button, {
+    req(rasterFiles(), class_limits())
+    
+    # Process data with reclassify_module
+    combined_data <- tryCatch({
+      reclassify_module(permanent_folder, class_limits(), input$resopix)
+    }, error = function(e) {
+      output$progress <- renderText(paste("Erreur lors de la reclassification:", e$message))
+      NULL
+    })
+    
+    if (is.null(combined_data)) {
+      return()
+    }
+    
+    # Ensure treatment names are repeated correctly
+    #num_classes_per_file <- 5  # Number of classification classes
+    #num_files <- length(input$data_files$name)
+    #combined_data$Treatment <- rep(rep(input$data_files$name, each = num_classes_per_file), length.out = nrow(combined_data))
+    
+    # Update data_ready reactive value
+    data_ready(combined_data)
+    
+    # Define the filename and path for the exported data
+    processed_file_path <- file.path(permanent_folder, paste("combined_data_", Sys.Date(), ".csv", sep = ""))
+    
+    # Export data with data_export_module
+
+    #processedData(export_path)
+    
+    output$progress <- renderText(" Les données ont été traitées. 
+    La répartition choisit peut être visualisées. 
+    Les données issues de l'analyse sont téléchargeables.")
+    
+    output$downloadoption <- renderUI({downloadButton("download_result", "Télécharger les données")})
+  })
+  
+  output$graph <- renderPlot({
+    req(data_ready())
+    
+    ggplot(data_ready(), aes(x = Treatment, y = Percentage_Pixels, fill = factor(value))) +
+      geom_bar(stat = "identity", position = "dodge") +
+      geom_text(aes(label = round(Percentage_Pixels, 2)), 
+                position = position_dodge(width = 0.9), 
+                vjust = -0.3, size = 3, color = "black") +
+      labs(title = "Percentage Pixels by Treatment and Value", 
+           y = "Percentage Pixels", 
+           x = "Treatment") +
+      theme_minimal() +
+      theme(legend.position = "bottom", 
+            axis.text.x = element_text(angle = 45, hjust = 1))
+  })
+  
+  # Provide a download handler for the processed data
+  output$download_result <- downloadHandler(
+    filename = function() {
+      paste("combined_data_", Sys.Date(), ".csv", sep = "")
+    },
+    content = function(file) {
+      write.csv(data_ready(), file)
+    }
+  )
+  
+}
